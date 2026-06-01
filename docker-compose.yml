@@ -24,6 +24,8 @@ services:
     environment:
       SERVER_PORT: 4000
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-disaster_relief}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-to-a-long-random-string}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
     ports:
       - "${SERVER_PORT:-4000}:4000"
     depends_on:
