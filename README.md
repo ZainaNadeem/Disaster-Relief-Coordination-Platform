@@ -97,6 +97,30 @@ details.
 | `POST /incidents/:id/resources`   | any auth     | Add a resource to the incident           |
 | `PATCH /resources/:id/dispatch`   | any auth     | Assign a resource to a user (DISPATCHED) |
 
+## Real-time updates (WebSocket)
+
+A WebSocket server (`ws`) runs on the same port at `ws://localhost:4000/ws`.
+After connecting, send a JSON handshake to authenticate and subscribe to an
+incident:
+
+```json
+{ "token": "<JWT>", "incident_id": "<incident id>" }
+```
+
+The server validates the JWT and registers the socket under that incident.
+Updates to that incident are pushed as `{ type, entity, data }`:
+
+| Triggered by                     | Event                                       |
+| -------------------------------- | ------------------------------------------- |
+| `PATCH /tasks/:id`               | `{ type: "task.updated", entity: "task", ... }`         |
+| `PATCH /resources/:id/dispatch`  | `{ type: "resource.dispatched", entity: "resource", ... }` |
+
+```js
+const ws = new WebSocket('ws://localhost:4000/ws');
+ws.onopen = () => ws.send(JSON.stringify({ token, incident_id }));
+ws.onmessage = (e) => console.log(JSON.parse(e.data));
+```
+
 ## Workspace scripts
 
 | Command              | Description                          |

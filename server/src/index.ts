@@ -1,3 +1,4 @@
+import { createServer } from 'node:http';
 import express, { type Request, type Response } from 'express';
 import cors from 'cors';
 import 'dotenv/config';
@@ -8,6 +9,7 @@ import { incidentsRouter } from './routes/incidents.js';
 import { tasksRouter } from './routes/tasks.js';
 import { resourcesRouter } from './routes/resources.js';
 import { authenticateToken, requireRole } from './middleware/auth.js';
+import { initWebSocket } from './realtime/ws.js';
 
 const app = express();
 const port = Number(process.env.SERVER_PORT) || 4000;
@@ -49,6 +51,10 @@ app.use('/incidents', authenticateToken, incidentsRouter);
 app.use('/tasks', authenticateToken, tasksRouter);
 app.use('/resources', authenticateToken, resourcesRouter);
 
-app.listen(port, () => {
-  console.log(`Server listening on http://localhost:${port}`);
+// Wrap Express in an HTTP server so the WebSocket server can share the port.
+const server = createServer(app);
+initWebSocket(server);
+
+server.listen(port, () => {
+  console.log(`Server listening on http://localhost:${port} (WebSocket at ws://localhost:${port}/ws)`);
 });

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { validateBody } from '../middleware/validate.js';
+import { broadcast } from '../realtime/ws.js';
 
 export const tasksRouter = Router();
 
@@ -24,6 +25,8 @@ tasksRouter.patch('/:id', validateBody(updateTaskSchema), async (req: Request, r
       where: { id: req.params.id },
       data: req.body,
     });
+    // Notify everyone watching this incident.
+    broadcast(task.incidentId, { type: 'task.updated', entity: 'task', data: task });
     res.json(task);
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError) {

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { validateBody } from '../middleware/validate.js';
+import { broadcast } from '../realtime/ws.js';
 
 export const resourcesRouter = Router();
 
@@ -30,6 +31,12 @@ resourcesRouter.patch(
       const resource = await prisma.resource.update({
         where: { id: req.params.id },
         data: { assignedTo: req.body.assignedTo, status: 'DISPATCHED' },
+      });
+      // Notify everyone watching this incident.
+      broadcast(resource.incidentId, {
+        type: 'resource.dispatched',
+        entity: 'resource',
+        data: resource,
       });
       res.json(resource);
     } catch (err) {
