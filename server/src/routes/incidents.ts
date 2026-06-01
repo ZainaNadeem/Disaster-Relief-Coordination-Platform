@@ -61,6 +61,50 @@ incidentsRouter.get('/', async (_req: Request, res: Response) => {
   res.json(incidents);
 });
 
+// GET /incidents/map — all ACTIVE incidents as a GeoJSON FeatureCollection.
+// NOTE: must be declared before "/:id" so "map" isn't treated as an id.
+// Coordinates are the stored lat/lng; no geocoding happens server-side.
+incidentsRouter.get('/map', async (_req: Request, res: Response) => {
+  const incidents = await prisma.incident.findMany({
+    where: { status: 'ACTIVE' },
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      lat: true,
+      lng: true,
+      // Filtered relation counts: only OPEN tasks and AVAILABLE resources.
+      _count: {
+        select: {
+          tasks: { where: { status: 'OPEN' } },
+          resources: { where: { status: 'AVAILABLE' } },
+        },
+      },
+    },
+  });
+
+  const featureCollection = {
+    type: 'FeatureCollection' as const,
+    features: incidents.map((incident) => ({
+      type: 'Feature' as const,
+      geometry: {
+        type: 'Point' as const,
+        // GeoJSON order is [longitude, latitude].
+        coordinates: [incident.lng, incident.lat],
+      },
+      properties: {
+        id: incident.id,
+        title: incident.title,
+        status: incident.status,
+        open_task_count: incident._count.tasks,
+        available_resource_count: incident._count.resources,
+      },
+    })),
+  };
+
+  res.json(featureCollection);
+});
+
 // GET /incidents/:id — one incident with its tasks and resources.
 incidentsRouter.get('/:id', async (req: Request, res: Response) => {
   const incident = await prisma.incident.findUnique({

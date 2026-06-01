@@ -90,12 +90,19 @@ details.
 | --------------------------------- | ------------ | ---------------------------------------- |
 | `POST /incidents`                 | ADMIN        | Create an incident                       |
 | `GET /incidents`                  | any auth     | List active incidents                    |
+| `GET /incidents/map`              | any auth     | Active incidents as a GeoJSON FeatureCollection |
 | `GET /incidents/:id`              | any auth     | Get incident with its tasks & resources  |
 | `PATCH /incidents/:id/status`     | ADMIN        | Update incident status                   |
 | `POST /incidents/:id/tasks`       | any auth     | Create a task under the incident         |
 | `PATCH /tasks/:id`                | any auth     | Update a task's status and/or assignee   |
 | `POST /incidents/:id/resources`   | any auth     | Add a resource to the incident           |
 | `PATCH /resources/:id/dispatch`   | any auth     | Assign a resource to a user (DISPATCHED) |
+
+`GET /incidents/map` returns each active incident as a GeoJSON `Point` feature
+(`coordinates: [lng, lat]`) with properties `id`, `title`, `status`,
+`open_task_count`, `available_resource_count` — ready to drop into a Mapbox or
+Leaflet map. Mapping/geocoding is done client-side; set `NEXT_PUBLIC_MAPBOX_TOKEN`
+in your env (the server does no geocoding).
 
 ## Real-time updates (WebSocket)
 
