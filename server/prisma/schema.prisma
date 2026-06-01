@@ -1,0 +1,112 @@
+// Prisma schema for the Disaster Relief Coordination Platform.
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum Role {
+  ADMIN
+  VOLUNTEER
+}
+
+enum IncidentStatus {
+  ACTIVE
+  RESOLVED
+}
+
+enum ResourceStatus {
+  AVAILABLE
+  DISPATCHED
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+}
+
+enum Priority {
+  LOW
+  MED
+  HIGH
+}
+
+// ---------- Models ----------
+
+model User {
+  id             String   @id @default(uuid())
+  name           String
+  email          String   @unique
+  hashedPassword String   @map("hashed_password")
+  role           Role     @default(VOLUNTEER)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // A user can be assigned many resources and many tasks.
+  resources Resource[]
+  tasks     Task[]
+
+  @@map("users")
+}
+
+model Incident {
+  id          String         @id @default(uuid())
+  title       String
+  description String
+  lat         Float
+  lng         Float
+  status      IncidentStatus @default(ACTIVE)
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  // An incident owns its resources and tasks.
+  resources Resource[]
+  tasks     Task[]
+
+  @@map("incidents")
+}
+
+model Resource {
+  id       String         @id @default(uuid())
+  name     String
+  type     String
+  quantity Int            @default(0)
+  status   ResourceStatus @default(AVAILABLE)
+
+  // Every resource belongs to an incident; deleting the incident removes them.
+  incidentId String   @map("incident_id")
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  // A resource may be assigned to a user (nullable while AVAILABLE).
+  assignedTo String? @map("assigned_to")
+  assignee   User?   @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
+
+  @@index([incidentId])
+  @@index([assignedTo])
+  @@map("resources")
+}
+
+model Task {
+  id       String     @id @default(uuid())
+  title    String
+  status   TaskStatus @default(OPEN)
+  priority Priority   @default(MED)
+
+  // Every task belongs to an incident; deleting the incident removes them.
+  incidentId String   @map("incident_id")
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  // A task may be assigned to a user (nullable while OPEN/unassigned).
+  assignedTo String? @map("assigned_to")
+  assignee   User?   @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
+
+  @@index([incidentId])
+  @@index([assignedTo])
+  @@map("tasks")
+}
