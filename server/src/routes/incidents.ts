@@ -65,6 +65,9 @@ incidentsRouter.get('/', async (_req: Request, res: Response) => {
 // NOTE: must be declared before "/:id" so "map" isn't treated as an id.
 // Coordinates are the stored lat/lng; no geocoding happens server-side.
 incidentsRouter.get('/map', async (_req: Request, res: Response) => {
+  // Pull just the fields we need to tally per-incident counts. (We can't use a
+  // single Prisma `_count` here because we need the tasks relation counted twice
+  // with different filters — total OPEN vs. OPEN & HIGH priority.)
   const incidents = await prisma.incident.findMany({
     where: { status: 'ACTIVE' },
     select: {
@@ -73,33 +76,33 @@ incidentsRouter.get('/map', async (_req: Request, res: Response) => {
       status: true,
       lat: true,
       lng: true,
-      // Filtered relation counts: only OPEN tasks and AVAILABLE resources.
-      _count: {
-        select: {
-          tasks: { where: { status: 'OPEN' } },
-          resources: { where: { status: 'AVAILABLE' } },
-        },
-      },
+      tasks: { select: { status: true, priority: true } },
+      resources: { select: { status: true } },
     },
   });
 
   const featureCollection = {
     type: 'FeatureCollection' as const,
-    features: incidents.map((incident) => ({
-      type: 'Feature' as const,
-      geometry: {
-        type: 'Point' as const,
-        // GeoJSON order is [longitude, latitude].
-        coordinates: [incident.lng, incident.lat],
-      },
-      properties: {
-        id: incident.id,
-        title: incident.title,
-        status: incident.status,
-        open_task_count: incident._count.tasks,
-        available_resource_count: incident._count.resources,
-      },
-    })),
+    features: incidents.map((incident) => {
+      const openTasks = incident.tasks.filter((t) => t.status === 'OPEN');
+      return {
+        type: 'Feature' as const,
+        geometry: {
+          type: 'Point' as const,
+          // GeoJSON order is [longitude, latitude].
+          coordinates: [incident.lng, incident.lat],
+        },
+        properties: {
+          id: incident.id,
+          title: incident.title,
+          status: incident.status,
+          open_task_count: openTasks.length,
+          high_priority_task_count: openTasks.filter((t) => t.priority === 'HIGH').length,
+          available_resource_count: incident.resources.filter((r) => r.status === 'AVAILABLE')
+            .length,
+        },
+      };
+    }),
   };
 
   res.json(featureCollection);

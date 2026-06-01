@@ -38,6 +38,25 @@ docker compose up --build
 - Server: http://localhost:4000 (`/health`, `/api`)
 - PostgreSQL: localhost:5432
 
+## Client (Next.js)
+
+App Router + TypeScript + Tailwind. Configure `client/.env.local`:
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:4000
+NEXT_PUBLIC_MAPBOX_TOKEN=<your-mapbox-token>
+```
+
+Routes: `/login`, `/register`, `/dashboard` (protected), `/incidents/[id]`
+(protected). Protected routes use a client-side `AuthGuard`. All API calls go
+through an axios instance (`src/lib/api.ts`) that attaches the JWT from
+`localStorage` and redirects to `/login` on `401`.
+
+The dashboard renders `<IncidentMap />` (mapbox-gl + react-map-gl): it fetches
+`/incidents/map` and plots colored markers — red = active with high-priority
+tasks, amber = active, green = resolved — with click popups linking to each
+incident. Needs `NEXT_PUBLIC_MAPBOX_TOKEN` to display.
+
 ## Database (Prisma + PostgreSQL)
 
 The server uses [Prisma](https://www.prisma.io/) with PostgreSQL. The schema
@@ -100,9 +119,9 @@ details.
 
 `GET /incidents/map` returns each active incident as a GeoJSON `Point` feature
 (`coordinates: [lng, lat]`) with properties `id`, `title`, `status`,
-`open_task_count`, `available_resource_count` — ready to drop into a Mapbox or
-Leaflet map. Mapping/geocoding is done client-side; set `NEXT_PUBLIC_MAPBOX_TOKEN`
-in your env (the server does no geocoding).
+`open_task_count`, `high_priority_task_count`, `available_resource_count` — ready
+to drop into a Mapbox or Leaflet map. Mapping/geocoding is done client-side; set
+`NEXT_PUBLIC_MAPBOX_TOKEN` in your env (the server does no geocoding).
 
 ## Real-time updates (WebSocket)
 
