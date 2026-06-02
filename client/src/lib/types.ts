@@ -51,6 +51,12 @@ export interface Incident {
   resources?: Resource[];
 }
 
+// Shape returned by GET /incidents (list) — incident fields plus rollup counts.
+export interface IncidentListItem extends Incident {
+  openTaskCount: number;
+  dispatchedResourceCount: number;
+}
+
 // GeoJSON returned by GET /incidents/map.
 export interface IncidentFeatureProperties {
   id: string;

@@ -52,10 +52,13 @@ Routes: `/login`, `/register`, `/dashboard` (protected), `/incidents/[id]`
 through an axios instance (`src/lib/api.ts`) that attaches the JWT from
 `localStorage` and redirects to `/login` on `401`.
 
-The dashboard renders `<IncidentMap />` (mapbox-gl + react-map-gl): it fetches
-`/incidents/map` and plots colored markers — red = active with high-priority
-tasks, amber = active, green = resolved — with click popups linking to each
-incident. Needs `NEXT_PUBLIC_MAPBOX_TOKEN` to display.
+The dashboard shows a stats bar (active incidents / open tasks / dispatched
+resources from `GET /incidents`), the `<IncidentMap />` (mapbox-gl +
+react-map-gl) plotting colored markers — red = active with high-priority tasks,
+amber = active, green = resolved — with popups linking to each incident, and a
+sidebar of active incidents sorted by open-task count. Admins get an **Add
+Incident** modal with a Mapbox geocoder for location. Needs
+`NEXT_PUBLIC_MAPBOX_TOKEN` to display the map/geocoder.
 
 The `/incidents/[id]` page is a live three-panel view: incident info (left), a
 drag-and-drop task board with OPEN / IN_PROGRESS / DONE columns powered by

@@ -52,13 +52,31 @@ incidentsRouter.post(
   },
 );
 
-// GET /incidents — list all ACTIVE incidents (newest first).
+// GET /incidents — list all ACTIVE incidents (newest first) with per-incident
+// counts of OPEN tasks and DISPATCHED resources (used by the dashboard stats +
+// sidebar). These two relations have one filter each, so a single Prisma
+// `_count` handles them.
 incidentsRouter.get('/', async (_req: Request, res: Response) => {
   const incidents = await prisma.incident.findMany({
     where: { status: 'ACTIVE' },
     orderBy: { createdAt: 'desc' },
+    include: {
+      _count: {
+        select: {
+          tasks: { where: { status: 'OPEN' } },
+          resources: { where: { status: 'DISPATCHED' } },
+        },
+      },
+    },
   });
-  res.json(incidents);
+
+  const shaped = incidents.map(({ _count, ...incident }) => ({
+    ...incident,
+    openTaskCount: _count.tasks,
+    dispatchedResourceCount: _count.resources,
+  }));
+
+  res.json(shaped);
 });
 
 // GET /incidents/map — all ACTIVE incidents as a GeoJSON FeatureCollection.
