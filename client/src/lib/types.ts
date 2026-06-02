@@ -13,6 +13,11 @@ export interface AuthUser {
   role: Role;
 }
 
+export interface AssigneeRef {
+  id: string;
+  name: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -20,6 +25,7 @@ export interface Task {
   priority: Priority;
   incidentId: string;
   assignedTo: string | null;
+  assignee?: AssigneeRef | null;
 }
 
 export interface Resource {
@@ -30,6 +36,7 @@ export interface Resource {
   status: ResourceStatus;
   incidentId: string;
   assignedTo: string | null;
+  assignee?: AssigneeRef | null;
 }
 
 export interface Incident {
@@ -63,4 +70,11 @@ export interface IncidentFeature {
 export interface IncidentFeatureCollection {
   type: 'FeatureCollection';
   features: IncidentFeature[];
+}
+
+// Events pushed over the WebSocket: { type, entity, data }.
+export interface WsEvent {
+  type: string;
+  entity: 'task' | 'resource' | 'incident';
+  data: unknown;
 }

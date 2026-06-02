@@ -24,6 +24,7 @@ tasksRouter.patch('/:id', validateBody(updateTaskSchema), async (req: Request, r
     const task = await prisma.task.update({
       where: { id: req.params.id },
       data: req.body,
+      include: { assignee: { select: { id: true, name: true } } },
     });
     // Notify everyone watching this incident.
     broadcast(task.incidentId, { type: 'task.updated', entity: 'task', data: task });

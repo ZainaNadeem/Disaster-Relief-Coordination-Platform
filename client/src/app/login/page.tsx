@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import axios from 'axios';
 import api from '@/lib/api';
-import { setToken } from '@/lib/auth';
+import { setToken, setUser } from '@/lib/auth';
 import type { AuthUser } from '@/lib/types';
 
 export default function LoginPage() {
@@ -25,6 +25,7 @@ export default function LoginPage() {
         password,
       });
       setToken(data.token);
+      setUser(data.user);
       router.push('/dashboard');
     } catch (err) {
       setError(

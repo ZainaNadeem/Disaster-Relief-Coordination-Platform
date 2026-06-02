@@ -57,6 +57,12 @@ The dashboard renders `<IncidentMap />` (mapbox-gl + react-map-gl): it fetches
 tasks, amber = active, green = resolved — with click popups linking to each
 incident. Needs `NEXT_PUBLIC_MAPBOX_TOKEN` to display.
 
+The `/incidents/[id]` page is a live three-panel view: incident info (left), a
+drag-and-drop task board with OPEN / IN_PROGRESS / DONE columns powered by
+`@dnd-kit/core` (center), and a resource list with an admin-only **Dispatch**
+button (right). All three panels update in real time over a WebSocket
+(`/ws?incident_id=…`) with automatic reconnection.
+
 ## Database (Prisma + PostgreSQL)
 
 The server uses [Prisma](https://www.prisma.io/) with PostgreSQL. The schema

@@ -31,6 +31,7 @@ resourcesRouter.patch(
       const resource = await prisma.resource.update({
         where: { id: req.params.id },
         data: { assignedTo: req.body.assignedTo, status: 'DISPATCHED' },
+        include: { assignee: { select: { id: true, name: true } } },
       });
       // Notify everyone watching this incident.
       broadcast(resource.incidentId, {

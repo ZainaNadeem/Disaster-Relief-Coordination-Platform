@@ -108,11 +108,21 @@ incidentsRouter.get('/map', async (_req: Request, res: Response) => {
   res.json(featureCollection);
 });
 
-// GET /incidents/:id — one incident with its tasks and resources.
+// GET /incidents/:id — one incident with its tasks and resources (each with the
+// assigned user's name, so the UI can show "assigned volunteer").
 incidentsRouter.get('/:id', async (req: Request, res: Response) => {
   const incident = await prisma.incident.findUnique({
     where: { id: req.params.id },
-    include: { tasks: true, resources: true },
+    include: {
+      tasks: {
+        include: { assignee: { select: { id: true, name: true } } },
+        orderBy: { title: 'asc' },
+      },
+      resources: {
+        include: { assignee: { select: { id: true, name: true } } },
+        orderBy: { name: 'asc' },
+      },
+    },
   });
   if (!incident) {
     res.status(404).json({ error: 'Incident not found' });

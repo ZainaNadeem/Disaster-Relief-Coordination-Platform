@@ -1,7 +1,10 @@
-// Tiny localStorage-backed token store. All access is guarded with a
+// Tiny localStorage-backed token + user store. All access is guarded with a
 // `typeof window` check so it's safe to import in server components.
 
+import type { AuthUser } from './types';
+
 const TOKEN_KEY = 'token';
+const USER_KEY = 'user';
 
 export function getToken(): string | null {
   if (typeof window === 'undefined') return null;
@@ -13,9 +16,30 @@ export function setToken(token: string): void {
   window.localStorage.setItem(TOKEN_KEY, token);
 }
 
+export function setUser(user: AuthUser): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+export function getUser(): AuthUser | null {
+  if (typeof window === 'undefined') return null;
+  const raw = window.localStorage.getItem(USER_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as AuthUser;
+  } catch {
+    return null;
+  }
+}
+
+export function isAdmin(): boolean {
+  return getUser()?.role === 'ADMIN';
+}
+
 export function clearToken(): void {
   if (typeof window === 'undefined') return;
   window.localStorage.removeItem(TOKEN_KEY);
+  window.localStorage.removeItem(USER_KEY);
 }
 
 export function isAuthenticated(): boolean {
