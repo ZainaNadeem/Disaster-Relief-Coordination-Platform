@@ -81,7 +81,7 @@ once — the old data volume isn't compatible with `postgres:15`.)
 - **JWT** (`jsonwebtoken` + `bcryptjs`) — authentication and password hashing
 - **Docker** — containerized services via Docker Compose
 
----
+
 
 ## API reference
 
