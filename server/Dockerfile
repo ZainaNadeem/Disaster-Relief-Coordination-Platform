@@ -2,19 +2,17 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install workspace dependencies using the root manifests.
-COPY package.json package-lock.json* ./
-COPY server/package.json ./server/package.json
-# Copy the Prisma schema first so the `postinstall` hook can generate the client.
-COPY server/prisma ./server/prisma
+# Install dependencies. Copy the Prisma schema first so the `postinstall` hook
+# (prisma generate) can find it during install.
+COPY package.json ./
+COPY prisma ./prisma
+RUN npm install
 
-RUN npm install --workspace server
-
-COPY server ./server
-
-WORKDIR /app/server
+# Copy the rest of the source and compile TypeScript to dist/.
+COPY . .
+RUN npm run build
 
 EXPOSE 4000
 
-# Apply any pending migrations, then start the dev server.
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run dev"]
+# Apply any pending migrations, then start the compiled Express app.
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run start"]

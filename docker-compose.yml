@@ -1,54 +1,48 @@
 services:
-  db:
-    image: postgres:16-alpine
+  postgres:
+    image: postgres:15
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-disaster_relief}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-disaster_relief}"]
+      # The server waits until this passes (see depends_on below).
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   server:
     build:
-      context: .
-      dockerfile: server/Dockerfile
+      context: ./server
     restart: unless-stopped
     environment:
       SERVER_PORT: 4000
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-disaster_relief}
-      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-to-a-long-random-string}
+      # Host is the compose service name "postgres".
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
     ports:
-      - "${SERVER_PORT:-4000}:4000"
+      - "4000:4000"
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
-    volumes:
-      - ./server:/app/server
-      - /app/server/node_modules
 
   client:
     build:
-      context: .
-      dockerfile: client/Dockerfile
+      context: ./client
     restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:${SERVER_PORT:-4000}
+      NEXT_PUBLIC_API_URL: http://localhost:4000
     ports:
-      - "${CLIENT_PORT:-3000}:3000"
+      - "3000:3000"
     depends_on:
       - server
-    volumes:
-      - ./client:/app/client
-      - /app/client/node_modules
 
 volumes:
   postgres_data:

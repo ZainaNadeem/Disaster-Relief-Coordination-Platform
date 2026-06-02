@@ -30,13 +30,20 @@ npm run dev
 ## Docker
 
 ```bash
-cp .env.example .env
+cp .env.example .env   # fill in values
 docker compose up --build
 ```
 
-- Client: http://localhost:3000
-- Server: http://localhost:4000 (`/health`, `/api`)
-- PostgreSQL: localhost:5432
+Three services, all configured from `.env`:
+
+- **postgres** (`postgres:15`) — `localhost:5432`, with a `pg_isready` healthcheck.
+- **server** — builds from `./server`; waits for postgres to be healthy, runs
+  `prisma migrate deploy`, then starts the app on `localhost:4000`.
+- **client** — builds from `./client`; `NEXT_PUBLIC_API_URL=http://localhost:4000`,
+  served on `localhost:3000`.
+
+> If you ran an older `postgres:16` image before, run `docker compose down -v`
+> once — the old data volume isn't compatible with `postgres:15`.
 
 ## Client (Next.js)
 
