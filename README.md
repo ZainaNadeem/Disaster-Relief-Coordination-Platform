@@ -1,172 +1,133 @@
 # Disaster Relief Coordination Platform
 
-A monorepo using npm workspaces.
+When a disaster strikes, response is often slowed by scattered spreadsheets and
+phone trees: no shared view of what's happening, who's doing what, or which
+supplies are still available — and information goes stale the moment it's
+written down. This platform is a single real-time coordination hub where
+responders log incidents on a live map, organize the work as a drag-and-drop
+task board, and track relief resources from *available* to *dispatched*. Every
+change is pushed instantly over WebSockets to everyone watching the same
+incident, with role-based access separating admins (who create incidents and
+dispatch resources) from volunteers (who pick up and progress tasks).
 
-## Structure
+## Architecture
 
+```mermaid
+flowchart LR
+    Browser["🌐 Browser (React UI)"]
+    Next["Next.js (App Router)"]
+    API["Express REST API"]
+    DB[("PostgreSQL")]
+    WS["WebSocket Server (ws)"]
+    Clients["All clients watching<br/>the same incident"]
+
+    Browser -->|HTTP| Next
+    Next -->|REST + JWT| API
+    API -->|Prisma| DB
+
+    Browser <-->|WebSocket handshake| WS
+    API -.->|on mutation| WS
+    WS -->|broadcast| Clients
 ```
-.
-├── client/   # Next.js + TypeScript + Tailwind
-├── server/   # Node.js + Express + TypeScript
-└── docker-compose.yml  # client + server + PostgreSQL
-```
 
-## Local development (without Docker)
+- **Request path:** the browser loads the UI from **Next.js**, which calls the
+  **Express REST API**; the API reads/writes **PostgreSQL** through Prisma.
+- **Real-time path:** the browser also opens a **WebSocket** connection. When a
+  task or resource changes via the REST API, the server **broadcasts** the event
+  to every connected client subscribed to that incident.
+
+## Features
+
+- **Real-time task board** — drag tasks between `OPEN` / `IN_PROGRESS` / `DONE`
+  columns; updates broadcast live to everyone viewing the incident.
+- **Geospatial incident map** — active incidents plotted as colored markers
+  (red = active with high-priority tasks, amber = active, green = resolved) with
+  click-through popups.
+- **Role-based access** — JWT auth with `ADMIN` vs `VOLUNTEER` roles gating
+  privileged actions (creating incidents, updating status, dispatching).
+- **Resource dispatch tracking** — assign relief resources to responders and
+  track their status from `AVAILABLE` to `DISPATCHED`.
+
+## Setup
 
 ```bash
-npm install            # installs all workspaces
-cp .env.example .env
-
-npm run dev:server     # http://localhost:4000
-npm run dev:client     # http://localhost:3000
-```
-
-Or run both at once:
-
-```bash
-npm run dev
-```
-
-## Docker
-
-```bash
-cp .env.example .env   # fill in values
+git clone <repo-url>
+cd Disaster-Relief-Coordination-Platform
+cp .env.example .env      # then fill in values (DB creds, JWT_SECRET, Mapbox token)
 docker compose up --build
 ```
 
-Three services, all configured from `.env`:
+This starts three services:
 
-- **postgres** (`postgres:15`) — `localhost:5432`, with a `pg_isready` healthcheck.
-- **server** — builds from `./server`; waits for postgres to be healthy, runs
-  `prisma migrate deploy`, then starts the app on `localhost:4000`.
-- **client** — builds from `./client`; `NEXT_PUBLIC_API_URL=http://localhost:4000`,
-  served on `localhost:3000`.
+- **client** — Next.js UI at http://localhost:3000
+- **server** — Express API + WebSocket at http://localhost:4000
+- **postgres** — PostgreSQL at localhost:5432 (the server waits for it to be
+  healthy, then runs `prisma migrate deploy` automatically)
 
-> If you ran an older `postgres:16` image before, run `docker compose down -v`
-> once — the old data volume isn't compatible with `postgres:15`.
+Add a `NEXT_PUBLIC_MAPBOX_TOKEN` to `.env` to enable the map and location
+geocoder. (If you previously ran a `postgres:16` image, run `docker compose down -v`
+once — the old data volume isn't compatible with `postgres:15`.)
 
-## Client (Next.js)
+## Tech Stack
 
-App Router + TypeScript + Tailwind. Configure `client/.env.local`:
+- **Next.js** — React framework (App Router) serving the client UI
+- **TypeScript** — end-to-end type safety across client and server
+- **Express** — REST API server
+- **Prisma** — type-safe ORM and database migrations
+- **PostgreSQL** — relational data store
+- **WebSockets** (`ws`) — real-time event broadcasting
+- **Mapbox GL** (`react-map-gl` + `@mapbox/search-js-react`) — interactive map and geocoding
+- **dnd-kit** — drag-and-drop task board
+- **JWT** (`jsonwebtoken` + `bcryptjs`) — authentication and password hashing
+- **Docker** — containerized services via Docker Compose
 
-```bash
-NEXT_PUBLIC_API_URL=http://localhost:4000
-NEXT_PUBLIC_MAPBOX_TOKEN=<your-mapbox-token>
-```
+---
 
-Routes: `/login`, `/register`, `/dashboard` (protected), `/incidents/[id]`
-(protected). Protected routes use a client-side `AuthGuard`. All API calls go
-through an axios instance (`src/lib/api.ts`) that attaches the JWT from
-`localStorage` and redirects to `/login` on `401`.
+## API reference
 
-The dashboard shows a stats bar (active incidents / open tasks / dispatched
-resources from `GET /incidents`), the `<IncidentMap />` (mapbox-gl +
-react-map-gl) plotting colored markers — red = active with high-priority tasks,
-amber = active, green = resolved — with popups linking to each incident, and a
-sidebar of active incidents sorted by open-task count. Admins get an **Add
-Incident** modal with a Mapbox geocoder for location. Needs
-`NEXT_PUBLIC_MAPBOX_TOKEN` to display the map/geocoder.
+REST routes require `Authorization: Bearer <token>`; request bodies are
+validated with [zod](https://zod.dev/) (`400` with field details on failure).
 
-The `/incidents/[id]` page is a live three-panel view: incident info (left), a
-drag-and-drop task board with OPEN / IN_PROGRESS / DONE columns powered by
-`@dnd-kit/core` (center), and a resource list with an admin-only **Dispatch**
-button (right). All three panels update in real time over a WebSocket
-(`/ws?incident_id=…`) with automatic reconnection.
-
-## Database (Prisma + PostgreSQL)
-
-The server uses [Prisma](https://www.prisma.io/) with PostgreSQL. The schema
-(models `User`, `Incident`, `Resource`, `Task`) lives in
-`server/prisma/schema.prisma`.
-
-```bash
-# apply migrations to a running database
-npm run prisma:migrate --workspace server
-# regenerate the typed client after editing the schema
-npm run prisma:generate --workspace server
-# browse data in a GUI
-npm run prisma:studio --workspace server
-```
-
-`DATABASE_URL` is read from `server/.env` (see `.env.example`).
-
-## Authentication
-
-JWT-based auth (bcrypt password hashing, 8-hour signed tokens). Set `JWT_SECRET`
-in your env.
-
-| Endpoint              | Auth                  | Description                              |
-| --------------------- | --------------------- | ---------------------------------------- |
-| `POST /auth/register` | public                | Create a user, returns user + JWT        |
-| `POST /auth/login`    | public                | Verify credentials, returns user + JWT   |
-| `GET /me`             | Bearer token          | Returns the caller's token payload       |
-| `GET /admin/ping`     | Bearer token + ADMIN  | Example admin-only route                 |
-
-Protect your own routes with the `authenticateToken` and `requireRole(role)`
-middleware in `server/src/middleware/auth.ts`.
-
-```bash
-# register
-curl -X POST localhost:4000/auth/register -H 'Content-Type: application/json' \
-  -d '{"name":"Ada","email":"ada@example.com","password":"secret123","role":"ADMIN"}'
-# login, then call a protected route
-TOKEN=$(curl -s -X POST localhost:4000/auth/login -H 'Content-Type: application/json' \
-  -d '{"email":"ada@example.com","password":"secret123"}' | jq -r .token)
-curl localhost:4000/me -H "Authorization: Bearer $TOKEN"
-```
-
-## Domain API
-
-All routes below require `Authorization: Bearer <token>`. Request bodies are
-validated with [zod](https://zod.dev/); invalid input returns `400` with field
-details.
-
-| Method & path                     | Access       | Description                              |
-| --------------------------------- | ------------ | ---------------------------------------- |
-| `POST /incidents`                 | ADMIN        | Create an incident                       |
-| `GET /incidents`                  | any auth     | List active incidents                    |
+| Method & path                     | Access       | Description                                     |
+| --------------------------------- | ------------ | ----------------------------------------------- |
+| `POST /auth/register`             | public       | Create a user, returns user + JWT               |
+| `POST /auth/login`                | public       | Verify credentials, returns user + JWT          |
+| `POST /incidents`                 | ADMIN        | Create an incident                              |
+| `GET /incidents`                  | any auth     | List active incidents (with rollup counts)      |
 | `GET /incidents/map`              | any auth     | Active incidents as a GeoJSON FeatureCollection |
-| `GET /incidents/:id`              | any auth     | Get incident with its tasks & resources  |
-| `PATCH /incidents/:id/status`     | ADMIN        | Update incident status                   |
-| `POST /incidents/:id/tasks`       | any auth     | Create a task under the incident         |
-| `PATCH /tasks/:id`                | any auth     | Update a task's status and/or assignee   |
-| `POST /incidents/:id/resources`   | any auth     | Add a resource to the incident           |
-| `PATCH /resources/:id/dispatch`   | any auth     | Assign a resource to a user (DISPATCHED) |
+| `GET /incidents/:id`              | any auth     | Incident with its tasks & resources             |
+| `PATCH /incidents/:id/status`     | ADMIN        | Update incident status                          |
+| `POST /incidents/:id/tasks`       | any auth     | Create a task under the incident                |
+| `PATCH /tasks/:id`                | any auth     | Update a task's status and/or assignee          |
+| `POST /incidents/:id/resources`   | any auth     | Add a resource to the incident                  |
+| `PATCH /resources/:id/dispatch`   | any auth     | Assign a resource to a user (DISPATCHED)        |
 
-`GET /incidents/map` returns each active incident as a GeoJSON `Point` feature
-(`coordinates: [lng, lat]`) with properties `id`, `title`, `status`,
-`open_task_count`, `high_priority_task_count`, `available_resource_count` — ready
-to drop into a Mapbox or Leaflet map. Mapping/geocoding is done client-side; set
-`NEXT_PUBLIC_MAPBOX_TOKEN` in your env (the server does no geocoding).
+### Real-time updates
 
-## Real-time updates (WebSocket)
-
-A WebSocket server (`ws`) runs on the same port at `ws://localhost:4000/ws`.
-After connecting, send a JSON handshake to authenticate and subscribe to an
-incident:
+Connect to `ws://localhost:4000/ws`, then send a JSON handshake to authenticate
+and subscribe to an incident:
 
 ```json
 { "token": "<JWT>", "incident_id": "<incident id>" }
 ```
 
 The server validates the JWT and registers the socket under that incident.
-Updates to that incident are pushed as `{ type, entity, data }`:
+`PATCH /tasks/:id` and `PATCH /resources/:id/dispatch` then broadcast
+`{ type, entity, data }` events to all subscribers of that incident.
 
-| Triggered by                     | Event                                       |
-| -------------------------------- | ------------------------------------------- |
-| `PATCH /tasks/:id`               | `{ type: "task.updated", entity: "task", ... }`         |
-| `PATCH /resources/:id/dispatch`  | `{ type: "resource.dispatched", entity: "resource", ... }` |
+## Local development (without Docker)
 
-```js
-const ws = new WebSocket('ws://localhost:4000/ws');
-ws.onopen = () => ws.send(JSON.stringify({ token, incident_id }));
-ws.onmessage = (e) => console.log(JSON.parse(e.data));
+```bash
+npm install                                # installs all workspaces
+cp .env.example .env
+docker compose up -d postgres              # just the database
+npm run prisma:migrate --workspace server  # apply migrations
+npm run dev:server                         # http://localhost:4000
+npm run dev:client                         # http://localhost:3000
 ```
 
-## Workspace scripts
-
-| Command              | Description                          |
-| -------------------- | ------------------------------------ |
-| `npm run dev`        | Run all workspaces in dev mode       |
-| `npm run build`      | Build all workspaces                 |
-| `npm run lint`       | Lint/type-check all workspaces       |
+| Command           | Description                    |
+| ----------------- | ------------------------------ |
+| `npm run dev`     | Run all workspaces in dev mode |
+| `npm run build`   | Build all workspaces           |
+| `npm run lint`    | Lint/type-check all workspaces |
