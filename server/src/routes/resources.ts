@@ -1,6 +1,5 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { validateBody } from '../middleware/validate.js';
 import { broadcast } from '../realtime/ws.js';
@@ -16,24 +15,36 @@ const dispatchSchema = z.object({
 resourcesRouter.patch(
   '/:id/dispatch',
   validateBody(dispatchSchema),
-  async (req: Request, res: Response) => {
-    // Make sure the target user exists before dispatching.
-    const user = await prisma.user.findUnique({
-      where: { id: req.body.assignedTo },
-      select: { id: true },
-    });
-    if (!user) {
-      res.status(400).json({ error: 'assignedTo does not reference an existing user' });
-      return;
-    }
-
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const resource = await prisma.resource.update({
-        where: { id: req.params.id },
+      const user = await prisma.user.findUnique({
+        where: { id: req.body.assignedTo },
+        select: { id: true },
+      });
+      if (!user) {
+        res.status(400).json({ error: 'assignedTo does not reference an existing user' });
+        return;
+      }
+
+      // Claim the resource atomically so competing requests cannot overwrite the assignee.
+      const [resource] = await prisma.resource.updateManyAndReturn({
+        where: { id: req.params.id, status: 'AVAILABLE' },
         data: { assignedTo: req.body.assignedTo, status: 'DISPATCHED' },
         include: { assignee: { select: { id: true, name: true } } },
       });
-      // Notify everyone watching this incident.
+      if (!resource) {
+        const existing = await prisma.resource.findUnique({
+          where: { id: req.params.id },
+          select: { id: true },
+        });
+        if (existing) {
+          res.status(409).json({ error: 'Resource has already been dispatched' });
+        } else {
+          res.status(404).json({ error: 'Resource not found' });
+        }
+        return;
+      }
+
       broadcast(resource.incidentId, {
         type: 'resource.dispatched',
         entity: 'resource',
@@ -41,11 +52,7 @@ resourcesRouter.patch(
       });
       res.json(resource);
     } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
-        res.status(404).json({ error: 'Resource not found' });
-        return;
-      }
-      throw err;
+      next(err);
     }
   },
 );

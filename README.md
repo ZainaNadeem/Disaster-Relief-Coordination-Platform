@@ -102,6 +102,23 @@ validated with [zod](https://zod.dev/) (`400` with field details on failure).
 | `POST /incidents/:id/resources`   | any auth     | Add a resource to the incident                  |
 | `PATCH /resources/:id/dispatch`   | any auth     | Assign a resource to a user (DISPATCHED)        |
 
+A dispatch only succeeds while the resource is `AVAILABLE`. Concurrent
+requests for the same resource produce one successful assignment; later
+attempts receive `409 Conflict` and do not trigger a WebSocket broadcast.
+
+### Dispatch concurrency test
+
+Set `TEST_DATABASE_URL` to a dedicated PostgreSQL test database, then run:
+
+```bash
+DATABASE_URL="$TEST_DATABASE_URL" npm exec --workspace server -- prisma migrate deploy
+npm run test:dispatch --workspace server
+```
+
+The test sends 50 concurrent requests to dispatch the same resource to two
+competing assignees. It checks for one success, 49 conflicts, the winning
+assignment in PostgreSQL, and one WebSocket notification.
+
 ### Real-time updates
 
 Connect to `ws://localhost:4000/ws`, then send a JSON handshake to authenticate
